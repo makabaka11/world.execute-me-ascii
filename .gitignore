@@ -3,7 +3,6 @@ __pycache__/
 .DS_Store
 .build/
 dist/
-/audio-clock
 *.log
 *.mp4
 *.png
@@ -13,12 +12,12 @@ dist/
 *.pyz
 
 
-# Local audio input is embedded only in release packages.
-/media/
+# The release is reproducible from the Windows source tree, including song.mp3.
 *.mp3
 *.wav
 *.flac
 *.m4a
+!/media/song.mp3
 
 # README artwork
 !/docs/images/mv-cover.png

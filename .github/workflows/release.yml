@@ -1,0 +1,63 @@
+name: Windows release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'FFmpeg installation failed' }
+          }
+          python -m pip install -r tools/requirements-exe.txt
+          if ($LASTEXITCODE -ne 0) { throw 'PyInstaller installation failed' }
+
+      - name: Build Python bundle
+        shell: pwsh
+        run: |
+          python -X utf8 tools/build_bundle.py
+          if ($LASTEXITCODE -ne 0) { throw 'Python bundle build failed' }
+
+      - name: Build self-contained EXE
+        shell: pwsh
+        run: |
+          python -X utf8 tools/build_exe.py
+          if ($LASTEXITCODE -ne 0) { throw 'EXE build failed' }
+
+      - name: Verify release artifacts
+        shell: pwsh
+        run: |
+          python -X utf8 -m unittest discover -s tests -v
+          if ($LASTEXITCODE -ne 0) { throw 'Artifact verification failed' }
+          foreach ($file in @('dist/world-execute-mv.pyz', 'dist/world-execute-mv.exe')) {
+            if (-not (Test-Path -LiteralPath $file)) { throw "Missing artifact: $file" }
+          }
+
+      - name: Publish release with CHANGE_LOG.md
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME `
+            dist/world-execute-mv.pyz dist/world-execute-mv.exe `
+            --repo $env:GITHUB_REPOSITORY --verify-tag `
+            --title $env:GITHUB_REF_NAME --notes-file CHANGE_LOG.md
+          if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
